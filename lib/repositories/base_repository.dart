@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:exception_handling/exception/api_error_handler.dart';
 import 'package:exception_handling/models/model.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/retry.dart';
@@ -69,20 +70,23 @@ abstract class BaseRepository<T> {
     try {
       final uri = Uri.https(_baseUrl!, serviceURL, query);
 
-      final response = await _client.get(uri, headers: _headers(accessToken));
+      final response = await _client.get(
+        uri,
+        headers: _headers(accessToken),
+      );
 
       _logger.d(response.body);
+
+      if (!(response.statusCode == 200 || response.statusCode == 201)) {
+        throw ApiErrorHandler.getMessage(response);
+      }
 
       var body = json.decode(response.body) as List<dynamic>;
       var jsonList = (body).map((e) => JsonMap.from(e)).toList();
       List<T> data = jsonList.map(toT).toList();
       return data;
-    } on HttpException catch (e) {
-      _logger.e(e.message);
-      throw e.message;
     } catch (e) {
-      _logger.e(e);
-      rethrow;
+      throw ApiErrorHandler.getMessage(e);
     }
   }
 
@@ -162,6 +166,8 @@ abstract class BaseRepository<T> {
     } on HttpException catch (e) {
       _logger.e(e.message);
       throw e.message;
+    } on HttpClientResponse catch (e) {
+      throw ApiErrorHandler.getMessage(e.statusCode);
     } catch (e) {
       _logger.e(e);
       rethrow;
